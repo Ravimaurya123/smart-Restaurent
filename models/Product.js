@@ -24,6 +24,29 @@ const productSchema = new mongoose.Schema(
       type: String,
       required: true,
       trim: true,
+      enum: [
+        "Pizza",
+        "Burgers",
+        "Sandwiches",
+        "Momos",
+        "Pasta",
+        "Chinese",
+        "Fries & Starters",
+        "Rolls & Wraps",
+        "Chicken Specials",
+        "Mutton & Fish",
+        "Indian Meals",
+        "Street Food",
+        "Maggi & Snacks",
+        "Desserts",
+        "Beverages",
+      ],
+    },
+
+    foodType: {
+      type: String,
+      enum: ["Veg", "Non-Veg"],
+      default: "Veg",
     },
 
     image: {
@@ -58,9 +81,6 @@ const productSchema = new mongoose.Schema(
 
 const Product =
   mongoose.models.Product ||
-  mongoose.model(
-    "Product",
-    productSchema
-  );
+  mongoose.model("Product", productSchema);
 
 export default Product;

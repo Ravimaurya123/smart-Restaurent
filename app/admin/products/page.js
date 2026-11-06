@@ -3,60 +3,85 @@
 import { useEffect, useState } from "react";
 import AdminGuard from "../../../components/AdminGuard";
 
+const categoryOptions = [
+  "Pizza",
+  "Burgers",
+  "Sandwiches",
+  "Momos",
+  "Pasta",
+  "Chinese",
+  "Fries & Starters",
+  "Rolls & Wraps",
+  "Chicken Specials",
+  "Mutton & Fish",
+  "Indian Meals",
+  "Street Food",
+  "Maggi & Snacks",
+  "Desserts",
+  "Beverages",
+];
+
+const nonVegOnlyCategories = [
+  "Chicken Specials",
+  "Mutton & Fish",
+];
+
+const vegOnlyCategories = [
+  "Desserts",
+  "Beverages",
+];
+
 const emptyForm = {
   name: "",
   description: "",
   price: "",
   category: "",
+  foodType: "Veg",
   image: "",
   stock: "",
   rating: "",
   isAvailable: true,
 };
 
+function getAllowedFoodTypes(category) {
+  if (nonVegOnlyCategories.includes(category)) {
+    return ["Non-Veg"];
+  }
+
+  if (vegOnlyCategories.includes(category)) {
+    return ["Veg"];
+  }
+
+  return ["Veg", "Non-Veg"];
+}
+
 export default function AdminProductsPage() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
-
   const [showForm, setShowForm] = useState(false);
-
   const [editingId, setEditingId] = useState(null);
-
   const [form, setForm] = useState(emptyForm);
-
   const [saving, setSaving] = useState(false);
-
   const [deletingId, setDeletingId] = useState(null);
-
   const [search, setSearch] = useState("");
-
-  const [categoryFilter, setCategoryFilter] =
-    useState("All");
+  const [categoryFilter, setCategoryFilter] = useState("All");
 
   const fetchProducts = async () => {
     try {
       setLoading(true);
 
-      const response = await fetch(
-        "/api/products"
-      );
-
+      const response = await fetch("/api/products");
       const data = await response.json();
 
       if (!response.ok) {
         throw new Error(
-          data.message ||
-            "Failed to fetch products"
+          data.message || "Failed to fetch products"
         );
       }
 
       setProducts(data.products || []);
     } catch (error) {
-      console.error(
-        "Fetch products error:",
-        error
-      );
-
+      console.error("Fetch products error:", error);
       alert(error.message);
     } finally {
       setLoading(false);
@@ -68,16 +93,22 @@ export default function AdminProductsPage() {
   }, []);
 
   const handleChange = (e) => {
-    const { name, value, type, checked } =
-      e.target;
+    const { name, value, type, checked } = e.target;
 
-    setForm((currentForm) => ({
-      ...currentForm,
-      [name]:
-        type === "checkbox"
-          ? checked
-          : value,
-    }));
+    setForm((currentForm) => {
+      const updatedForm = {
+        ...currentForm,
+        [name]: type === "checkbox" ? checked : value,
+      };
+
+      if (name === "category") {
+        const allowedTypes = getAllowedFoodTypes(value);
+
+        updatedForm.foodType = allowedTypes[0];
+      }
+
+      return updatedForm;
+    });
   };
 
   const handleSubmit = async (e) => {
@@ -90,29 +121,26 @@ export default function AdminProductsPage() {
         ? "/api/products/" + editingId
         : "/api/products";
 
-      const method = editingId
-        ? "PATCH"
-        : "POST";
+      const method = editingId ? "PATCH" : "POST";
 
       const response = await fetch(url, {
         method,
         headers: {
-          "Content-Type":
-            "application/json",
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           name: form.name,
           description: form.description,
           price: Number(form.price),
           category: form.category,
+          foodType: form.foodType,
           image: form.image,
           stock: Number(form.stock),
           rating:
             form.rating === ""
               ? 0
               : Number(form.rating),
-          isAvailable:
-            form.isAvailable,
+          isAvailable: form.isAvailable,
         }),
       });
 
@@ -120,8 +148,7 @@ export default function AdminProductsPage() {
 
       if (!response.ok) {
         throw new Error(
-          data.message ||
-            "Failed to save product"
+          data.message || "Failed to save product"
         );
       }
 
@@ -135,13 +162,9 @@ export default function AdminProductsPage() {
       setEditingId(null);
       setShowForm(false);
 
-      fetchProducts();
+      await fetchProducts();
     } catch (error) {
-      console.error(
-        "Save product error:",
-        error
-      );
-
+      console.error("Save product error:", error);
       alert(error.message);
     } finally {
       setSaving(false);
@@ -149,20 +172,23 @@ export default function AdminProductsPage() {
   };
 
   const handleEdit = (product) => {
+    const category = product.category || "";
+    const allowedTypes = getAllowedFoodTypes(category);
+
     setEditingId(product._id);
 
     setForm({
       name: product.name || "",
-      description:
-        product.description || "",
+      description: product.description || "",
       price: product.price ?? "",
-      category:
-        product.category || "",
+      category,
+      foodType: allowedTypes.includes(product.foodType)
+        ? product.foodType
+        : allowedTypes[0],
       image: product.image || "",
       stock: product.stock ?? "",
       rating: product.rating ?? "",
-      isAvailable:
-        product.isAvailable !== false,
+      isAvailable: product.isAvailable !== false,
     });
 
     setShowForm(true);
@@ -174,14 +200,11 @@ export default function AdminProductsPage() {
   };
 
   const handleDelete = async (id) => {
-    const confirmDelete =
-      window.confirm(
-        "Are you sure you want to delete this product?"
-      );
+    const confirmDelete = window.confirm(
+      "Are you sure you want to delete this product?"
+    );
 
-    if (!confirmDelete) {
-      return;
-    }
+    if (!confirmDelete) return;
 
     try {
       setDeletingId(id);
@@ -193,32 +216,23 @@ export default function AdminProductsPage() {
         }
       );
 
-      const data =
-        await response.json();
+      const data = await response.json();
 
       if (!response.ok) {
         throw new Error(
-          data.message ||
-            "Failed to delete product"
+          data.message || "Failed to delete product"
         );
       }
 
-      alert(
-        "Product deleted successfully"
-      );
+      alert("Product deleted successfully");
 
       setProducts((currentProducts) =>
         currentProducts.filter(
-          (product) =>
-            product._id !== id
+          (product) => product._id !== id
         )
       );
     } catch (error) {
-      console.error(
-        "Delete product error:",
-        error
-      );
-
+      console.error("Delete product error:", error);
       alert(error.message);
     } finally {
       setDeletingId(null);
@@ -233,96 +247,55 @@ export default function AdminProductsPage() {
 
   const categories = [
     "All",
-    ...new Set(
-      products.map(
-        (product) => product.category
-      )
-    ),
+    ...new Set(products.map((product) => product.category)),
   ];
 
-  const filteredProducts =
-    products.filter((product) => {
-      const matchesSearch =
-        product.name
-          .toLowerCase()
-          .includes(
-            search.toLowerCase()
-          );
+  const filteredProducts = products.filter((product) => {
+    const matchesSearch = (product.name || "")
+      .toLowerCase()
+      .includes(search.toLowerCase());
 
-      const matchesCategory =
-        categoryFilter === "All" ||
-        product.category ===
-          categoryFilter;
+    const matchesCategory =
+      categoryFilter === "All" ||
+      product.category === categoryFilter;
 
-      return (
-        matchesSearch &&
-        matchesCategory
-      );
-    });
+    return matchesSearch && matchesCategory;
+  });
 
   if (loading) {
     return (
       <AdminGuard>
-
         <main className="admin-products-page">
-
           <div className="admin-products-header">
-
             <div>
-
               <p>ADMIN PANEL</p>
-
-              <h1>
-                Product Management
-              </h1>
-
+              <h1>Product Management</h1>
               <span>
-                Manage restaurant products,
-                pricing and stock.
+                Manage restaurant products, pricing and stock.
               </span>
-
             </div>
-
           </div>
 
           <div className="admin-loading">
-
             <div className="loading-spinner"></div>
-
-            <p>
-              Loading products...
-            </p>
-
+            <p>Loading products...</p>
           </div>
-
         </main>
-
       </AdminGuard>
     );
   }
 
   return (
     <AdminGuard>
-
       <main className="admin-products-page">
-
         {/* HEADER */}
-
         <div className="admin-products-header">
-
           <div>
-
             <p>ADMIN PANEL</p>
-
-            <h1>
-              Product Management
-            </h1>
-
+            <h1>Product Management</h1>
             <span>
-              Manage restaurant products,
-              pricing and stock.
+              Manage restaurant products, pricing and stock.
             </span>
-
           </div>
 
           <button
@@ -335,64 +308,36 @@ export default function AdminProductsPage() {
           >
             + Add Product
           </button>
-
         </div>
 
         {/* STATS */}
-
         <div className="product-stats">
-
           <div className="product-stat-card">
-
             <span>📦</span>
-
             <div>
-
-              <small>
-                Total Products
-              </small>
-
-              <strong>
-                {products.length}
-              </strong>
-
+              <small>Total Products</small>
+              <strong>{products.length}</strong>
             </div>
-
           </div>
 
           <div className="product-stat-card">
-
             <span>✅</span>
-
             <div>
-
-              <small>
-                Available
-              </small>
-
+              <small>Available</small>
               <strong>
                 {
                   products.filter(
-                    (product) =>
-                      product.isAvailable
+                    (product) => product.isAvailable
                   ).length
                 }
               </strong>
-
             </div>
-
           </div>
 
           <div className="product-stat-card">
-
             <span>⚠️</span>
-
             <div>
-
-              <small>
-                Low Stock
-              </small>
-
+              <small>Low Stock</small>
               <strong>
                 {
                   products.filter(
@@ -402,57 +347,33 @@ export default function AdminProductsPage() {
                   ).length
                 }
               </strong>
-
             </div>
-
           </div>
 
           <div className="product-stat-card">
-
             <span>❌</span>
-
             <div>
-
-              <small>
-                Out of Stock
-              </small>
-
+              <small>Out of Stock</small>
               <strong>
                 {
                   products.filter(
-                    (product) =>
-                      product.stock === 0
+                    (product) => product.stock === 0
                   ).length
                 }
               </strong>
-
             </div>
-
           </div>
-
         </div>
 
         {/* ADD / EDIT FORM */}
-
         {showForm && (
-
           <div className="product-form-card">
-
             <div className="product-form-header">
-
               <div>
-
                 <h2>
-                  {editingId
-                    ? "Edit Product"
-                    : "Add New Product"}
+                  {editingId ? "Edit Product" : "Add New Product"}
                 </h2>
-
-                <p>
-                  Enter product information
-                  below.
-                </p>
-
+                <p>Enter product information below.</p>
               </div>
 
               <button
@@ -461,22 +382,15 @@ export default function AdminProductsPage() {
               >
                 ✕
               </button>
-
             </div>
 
             <form
               onSubmit={handleSubmit}
               className="product-form"
             >
-
               <div className="form-grid">
-
                 <div className="form-group">
-
-                  <label>
-                    Product Name
-                  </label>
-
+                  <label>Product Name</label>
                   <input
                     type="text"
                     name="name"
@@ -485,32 +399,46 @@ export default function AdminProductsPage() {
                     placeholder="Enter product name"
                     required
                   />
-
                 </div>
 
                 <div className="form-group">
-
-                  <label>
-                    Category
-                  </label>
-
-                  <input
-                    type="text"
+                  <label>Category</label>
+                  <select
                     name="category"
                     value={form.category}
                     onChange={handleChange}
-                    placeholder="Pizza, Burger, Indian..."
                     required
-                  />
+                  >
+                    <option value="">Select Category</option>
 
+                    {categoryOptions.map((category) => (
+                      <option key={category} value={category}>
+                        {category}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <div className="form-group">
+                  <label>Food Type</label>
+                  <select
+                    name="foodType"
+                    value={form.foodType}
+                    onChange={handleChange}
+                    required
+                  >
+                    {getAllowedFoodTypes(form.category).map(
+                      (type) => (
+                        <option key={type} value={type}>
+                          {type}
+                        </option>
+                      )
+                    )}
+                  </select>
+                </div>
 
-                  <label>
-                    Price (₹)
-                  </label>
-
+                <div className="form-group">
+                  <label>Price (₹)</label>
                   <input
                     type="number"
                     name="price"
@@ -520,15 +448,10 @@ export default function AdminProductsPage() {
                     min="0"
                     required
                   />
-
                 </div>
 
                 <div className="form-group">
-
-                  <label>
-                    Stock
-                  </label>
-
+                  <label>Stock</label>
                   <input
                     type="number"
                     name="stock"
@@ -538,15 +461,10 @@ export default function AdminProductsPage() {
                     min="0"
                     required
                   />
-
                 </div>
 
                 <div className="form-group">
-
-                  <label>
-                    Rating
-                  </label>
-
+                  <label>Rating</label>
                   <input
                     type="number"
                     name="rating"
@@ -557,15 +475,10 @@ export default function AdminProductsPage() {
                     max="5"
                     step="0.1"
                   />
-
                 </div>
 
                 <div className="form-group">
-
-                  <label>
-                    Image URL
-                  </label>
-
+                  <label>Image URL</label>
                   <input
                     type="text"
                     name="image"
@@ -574,15 +487,10 @@ export default function AdminProductsPage() {
                     placeholder="https://..."
                     required
                   />
-
                 </div>
 
                 <div className="form-group full-width">
-
-                  <label>
-                    Description
-                  </label>
-
+                  <label>Description</label>
                   <textarea
                     name="description"
                     value={form.description}
@@ -591,34 +499,22 @@ export default function AdminProductsPage() {
                     rows="4"
                     required
                   />
-
                 </div>
 
                 <div className="availability-checkbox">
-
                   <label>
-
                     <input
                       type="checkbox"
                       name="isAvailable"
-                      checked={
-                        form.isAvailable
-                      }
+                      checked={form.isAvailable}
                       onChange={handleChange}
                     />
-
-                    <span>
-                      Product is available
-                    </span>
-
+                    <span>Product is available</span>
                   </label>
-
                 </div>
-
               </div>
 
               <div className="form-actions">
-
                 <button
                   type="button"
                   className="cancel-product-btn"
@@ -638,229 +534,143 @@ export default function AdminProductsPage() {
                     ? "Update Product"
                     : "Add Product"}
                 </button>
-
               </div>
-
             </form>
-
           </div>
-
         )}
 
         {/* SEARCH + FILTER */}
-
         <div className="products-toolbar">
-
           <div className="product-search">
-
             <span>🔍</span>
-
             <input
               type="text"
               placeholder="Search products..."
               value={search}
-              onChange={(e) =>
-                setSearch(e.target.value)
-              }
+              onChange={(e) => setSearch(e.target.value)}
             />
-
           </div>
 
           <div className="category-filter">
-
-            <label>
-              Category:
-            </label>
+            <label>Category:</label>
 
             <select
               value={categoryFilter}
               onChange={(e) =>
-                setCategoryFilter(
-                  e.target.value
-                )
+                setCategoryFilter(e.target.value)
               }
             >
-
-              {categories.map(
-                (category) => (
-
-                  <option
-                    key={category}
-                    value={category}
-                  >
-                    {category}
-                  </option>
-
-                )
-              )}
-
+              {categories.map((category) => (
+                <option key={category} value={category}>
+                  {category}
+                </option>
+              ))}
             </select>
-
           </div>
-
         </div>
 
         {/* PRODUCTS */}
-
         {filteredProducts.length === 0 ? (
-
           <div className="admin-empty-products">
-
-            <div>
-              📦
-            </div>
-
-            <h2>
-              No Products Found
-            </h2>
-
-            <p>
-              Add a product or change
-              your search.
-            </p>
-
+            <div>📦</div>
+            <h2>No Products Found</h2>
+            <p>Add a product or change your search.</p>
           </div>
-
         ) : (
-
           <div className="products-grid">
+            {filteredProducts.map((product) => (
+              <div
+                className="product-admin-card"
+                key={product._id}
+              >
+                <div className="admin-product-image">
+                  <img
+                    src={product.image}
+                    alt={product.name}
+                  />
 
-            {filteredProducts.map(
-              (product) => (
-
-                <div
-                  className="product-admin-card"
-                  key={product._id}
-                >
-
-                  <div className="admin-product-image">
-
-                    <img
-                      src={product.image}
-                      alt={product.name}
-                    />
-
-                    <span
-                      className={
-                        product.isAvailable
-                          ? "available-badge"
-                          : "unavailable-badge"
-                      }
-                    >
-                      {product.isAvailable
-                        ? "Available"
-                        : "Unavailable"}
-                    </span>
-
-                  </div>
-
-                  <div className="admin-product-content">
-
-                    <div className="product-card-top">
-
-                      <div>
-
-                        <span className="product-category">
-                          {product.category}
-                        </span>
-
-                        <h3>
-                          {product.name}
-                        </h3>
-
-                      </div>
-
-                      <strong className="product-price">
-                        ₹{product.price}
-                      </strong>
-
-                    </div>
-
-                    <p className="product-description">
-                      {product.description}
-                    </p>
-
-                    <div className="product-rating">
-
-                      <span>
-                        ⭐
-                      </span>
-
-                      <strong>
-                        {product.rating ||
-                          "0.0"}
-                      </strong>
-
-                      <span>
-                        / 5
-                      </span>
-
-                    </div>
-
-                    <div className="product-stock">
-
-                      <span>
-                        Stock
-                      </span>
-
-                      <strong
-                        className={
-                          product.stock === 0
-                            ? "out-stock"
-                            : product.stock <= 5
-                            ? "low-stock"
-                            : "good-stock"
-                        }
-                      >
-                        {product.stock}
-                      </strong>
-
-                    </div>
-
-                    <div className="product-actions">
-
-                      <button
-                        className="edit-product-btn"
-                        onClick={() =>
-                          handleEdit(product)
-                        }
-                      >
-                        ✏️ Edit
-                      </button>
-
-                      <button
-                        className="delete-product-btn"
-                        disabled={
-                          deletingId ===
-                          product._id
-                        }
-                        onClick={() =>
-                          handleDelete(
-                            product._id
-                          )
-                        }
-                      >
-                        {deletingId ===
-                        product._id
-                          ? "Deleting..."
-                          : "🗑️ Delete"}
-                      </button>
-
-                    </div>
-
-                  </div>
-
+                  <span
+                    className={
+                      product.isAvailable
+                        ? "available-badge"
+                        : "unavailable-badge"
+                    }
+                  >
+                    {product.isAvailable
+                      ? "Available"
+                      : "Unavailable"}
+                  </span>
                 </div>
 
-              )
-            )}
+                <div className="admin-product-content">
+                  <div className="product-card-top">
+                    <div>
+                      <span className="product-category">
+                        {product.category}
+                      </span>
 
+                      <span>
+                        {product.foodType || "Veg"}
+                      </span>
+
+                      <h3>{product.name}</h3>
+                    </div>
+
+                    <strong className="product-price">
+                      ₹{product.price}
+                    </strong>
+                  </div>
+
+                  <p className="product-description">
+                    {product.description}
+                  </p>
+
+                  <div className="product-rating">
+                    <span>⭐</span>
+                    <strong>{product.rating || "0.0"}</strong>
+                    <span>/ 5</span>
+                  </div>
+
+                  <div className="product-stock">
+                    <span>Stock</span>
+
+                    <strong
+                      className={
+                        product.stock === 0
+                          ? "out-stock"
+                          : product.stock <= 5
+                          ? "low-stock"
+                          : "good-stock"
+                      }
+                    >
+                      {product.stock}
+                    </strong>
+                  </div>
+
+                  <div className="product-actions">
+                    <button
+                      className="edit-product-btn"
+                      onClick={() => handleEdit(product)}
+                    >
+                      ✏️ Edit
+                    </button>
+
+                    <button
+                      className="delete-product-btn"
+                      disabled={deletingId === product._id}
+                      onClick={() => handleDelete(product._id)}
+                    >
+                      {deletingId === product._id
+                        ? "Deleting..."
+                        : "🗑️ Delete"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
-
         )}
-
       </main>
-
     </AdminGuard>
   );
 }

@@ -7,43 +7,30 @@ import {
   useState,
 } from "react";
 
-const CartContext =
-  createContext();
+const CartContext = createContext();
 
-export function CartProvider({
-  children,
-}) {
-  const [cart, setCart] =
-    useState([]);
-
-  const [mounted, setMounted] =
-    useState(false);
+export function CartProvider({ children }) {
+  const [cart, setCart] = useState([]);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
 
-    const savedCart =
-      localStorage.getItem(
-        "smartRestaurantCart"
-      );
+    const savedCart = localStorage.getItem(
+      "smartRestaurantCart"
+    );
 
     if (savedCart) {
       try {
-        setCart(
-          JSON.parse(savedCart)
-        );
+        setCart(JSON.parse(savedCart));
       } catch {
-        localStorage.removeItem(
-          "smartRestaurantCart"
-        );
+        localStorage.removeItem("smartRestaurantCart");
       }
     }
   }, []);
 
   useEffect(() => {
-    if (!mounted) {
-      return;
-    }
+    if (!mounted) return;
 
     localStorage.setItem(
       "smartRestaurantCart",
@@ -51,44 +38,30 @@ export function CartProvider({
     );
   }, [cart, mounted]);
 
-  // ADD TO CART
   const addToCart = (food) => {
     setCart((currentCart) => {
-      const existingItem =
-        currentCart.find(
-          (item) =>
-            item.id === food.id
-        );
+      const existingItem = currentCart.find(
+        (item) => item.id === food.id
+      );
+
+      const stock = Number(food.stock) || 0;
+
+      if (stock <= 0) return currentCart;
 
       if (existingItem) {
-        // Stock limit
-        if (
-          existingItem.quantity >=
-          food.stock
-        ) {
+        if (existingItem.quantity >= stock) {
           return currentCart;
         }
 
-        return currentCart.map(
-          (item) =>
-            item.id === food.id
-              ? {
-                  ...item,
-                  quantity:
-                    item.quantity + 1,
-                  stock:
-                    food.stock,
-                }
-              : item
+        return currentCart.map((item) =>
+          item.id === food.id
+            ? {
+                ...item,
+                quantity: item.quantity + 1,
+                stock,
+              }
+            : item
         );
-      }
-
-      // Product has no stock
-      if (
-        !food.stock ||
-        food.stock <= 0
-      ) {
-        return currentCart;
       }
 
       return [
@@ -96,114 +69,71 @@ export function CartProvider({
         {
           ...food,
           quantity: 1,
-          stock: food.stock,
+          stock,
         },
       ];
     });
   };
 
-  // INCREASE
-  const increaseQuantity = (
-    id
-  ) => {
+  const increaseQuantity = (id) => {
     setCart((currentCart) =>
-      currentCart.map(
-        (item) => {
-          if (item.id !== id) {
-            return item;
-          }
+      currentCart.map((item) => {
+        if (item.id !== id) return item;
 
-          if (
-            item.quantity >=
-            item.stock
-          ) {
-            return item;
-          }
+        if (item.quantity >= item.stock) return item;
 
-          return {
-            ...item,
-            quantity:
-              item.quantity + 1,
-          };
-        }
-      )
+        return {
+          ...item,
+          quantity: item.quantity + 1,
+        };
+      })
     );
   };
 
-  // DECREASE
-  const decreaseQuantity = (
-    id
-  ) => {
+  const decreaseQuantity = (id) => {
     setCart((currentCart) =>
       currentCart
         .map((item) =>
           item.id === id
             ? {
                 ...item,
-                quantity:
-                  item.quantity - 1,
+                quantity: item.quantity - 1,
               }
             : item
         )
-        .filter(
-          (item) =>
-            item.quantity > 0
-        )
+        .filter((item) => item.quantity > 0)
     );
   };
 
-  // REMOVE
-  const removeFromCart = (
-    id
-  ) => {
+  const removeFromCart = (id) => {
     setCart((currentCart) =>
-      currentCart.filter(
-        (item) =>
-          item.id !== id
-      )
+      currentCart.filter((item) => item.id !== id)
     );
   };
 
-  // CLEAR
-  const clearCart = () => {
-    setCart([]);
-  };
+  const clearCart = () => setCart([]);
 
-  // TOTAL ITEMS
-  const totalItems =
-    cart.reduce(
-      (total, item) =>
-        total + item.quantity,
-      0
-    );
+  const totalItems = cart.reduce(
+    (total, item) => total + item.quantity,
+    0
+  );
 
-  // TOTAL PRICE
-  const totalPrice =
-    cart.reduce(
-      (total, item) =>
-        total +
-        item.price *
-          item.quantity,
-      0
-    );
+  const totalPrice = cart.reduce(
+    (total, item) =>
+      total + Number(item.price) * item.quantity,
+    0
+  );
 
   return (
     <CartContext.Provider
       value={{
         cart,
-
         addToCart,
-
         increaseQuantity,
-
         decreaseQuantity,
-
         removeFromCart,
-
         clearCart,
-
         totalItems,
-
         totalPrice,
       }}
     >
@@ -213,7 +143,5 @@ export function CartProvider({
 }
 
 export function useCart() {
-  return useContext(
-    CartContext
-  );
+  return useContext(CartContext);
 }

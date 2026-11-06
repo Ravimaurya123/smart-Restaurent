@@ -24,14 +24,14 @@ export default function AdminOrdersPage() {
 
         throw new Error(
           "Invalid server response. Status: " +
-            response.status
+          response.status
         );
       }
 
       if (!response.ok) {
         throw new Error(
           data.message ||
-            "Failed to fetch orders"
+          "Failed to fetch orders"
         );
       }
 
@@ -50,73 +50,59 @@ export default function AdminOrdersPage() {
     fetchOrders();
   }, []);
 
-  const updateOrderStatus = async (
-    id,
-    status
-  ) => {
+  const updateOrderStatus = async (id, status) => {
     try {
       setUpdatingId(id);
 
-      const response = await fetch(
-        "/api/orders/" + id,
-        {
-          method: "PATCH",
-
-          headers: {
-            "Content-Type":
-              "application/json",
-          },
-
-          body: JSON.stringify({
-            orderStatus: status,
-          }),
-        }
+      const token = localStorage.getItem(
+        "smartRestaurantToken"
       );
+
+      const response = await fetch(`/api/orders/${id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          orderStatus: status,
+        }),
+      });
 
       const text = await response.text();
 
-      let data;
+      let result;
 
       try {
-        data = JSON.parse(text);
+        result = JSON.parse(text);
       } catch (error) {
         throw new Error(
-          "Server did not return JSON. Status: " +
-            response.status
+          "Server did not return valid JSON. Status: " +
+          response.status
         );
       }
 
       if (!response.ok) {
         throw new Error(
-          data.message ||
-            "Failed to update order"
+          result.message || "Failed to update order"
         );
       }
 
-      setOrders(
-        (currentOrders) =>
-          currentOrders.map(
-            (order) =>
-              order._id === id
-                ? {
-                    ...order,
-                    orderStatus:
-                      data.order
-                        .orderStatus,
-                  }
-                : order
-          )
+      setOrders((currentOrders) =>
+        currentOrders.map((order) =>
+          order._id === id
+            ? {
+              ...order,
+              orderStatus:
+                result.order?.orderStatus || status,
+            }
+            : order
+        )
       );
 
-      alert(
-        "Order status updated successfully"
-      );
+      alert("Order status updated successfully");
     } catch (error) {
-      console.error(
-        "Update status error:",
-        error
-      );
-
+      console.error("Update status error:", error);
       alert(error.message);
     } finally {
       setUpdatingId(null);
@@ -567,17 +553,17 @@ export default function AdminOrdersPage() {
                         <strong
                           className={
                             order.deliveryFee ===
-                            0
+                              0
                               ? "free-delivery"
                               : ""
                           }
                         >
 
                           {order.deliveryFee ===
-                          0
+                            0
                             ? "FREE"
                             : "₹" +
-                              order.deliveryFee}
+                            order.deliveryFee}
 
                         </strong>
 
@@ -700,11 +686,11 @@ export default function AdminOrdersPage() {
                     {updatingId ===
                       order._id && (
 
-                      <span className="updating-text">
-                        Updating...
-                      </span>
+                        <span className="updating-text">
+                          Updating...
+                        </span>
 
-                    )}
+                      )}
 
                   </div>
 

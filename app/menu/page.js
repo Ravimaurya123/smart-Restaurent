@@ -1,88 +1,104 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useCart } from "../../context/CartContext";
 
+const categories = [
+  "All Items",
+  "Pizza",
+  "Burgers",
+  "Sandwiches",
+  "Momos",
+  "Pasta",
+  "Chinese",
+  "Fries & Starters",
+  "Rolls & Wraps",
+  "Chicken Specials",
+  "Mutton & Fish",
+  "Indian Meals",
+  "Street Food",
+  "Maggi & Snacks",
+  "Desserts",
+  "Beverages",
+];
+
+const categorySlides = [
+  {
+    title: "Delicious Pizza",
+    subtitle: "Freshly baked, cheesy and full of flavour.",
+    image:
+      "https://images.unsplash.com/photo-1513104890138-7c749659a591?w=1400",
+  },
+  {
+    title: "Tasty Burgers",
+    subtitle: "Big bites. Better flavours.",
+    image:
+      "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=1400",
+  },
+  {
+    title: "Sweet Treats",
+    subtitle: "Make every meal a little sweeter.",
+    image:
+      "https://images.unsplash.com/photo-1563805042-7684c019e1cb?w=1400",
+  },
+];
+
+const nonVegOnlyCategories = [
+  "Chicken Specials",
+  "Mutton & Fish",
+];
+
+const vegOnlyCategories = [
+  "Desserts",
+  "Beverages",
+];
+
+function getFoodType(product) {
+  if (nonVegOnlyCategories.includes(product.category)) {
+    return "Non-Veg";
+  }
+
+  if (vegOnlyCategories.includes(product.category)) {
+    return "Veg";
+  }
+
+  return product.foodType || "Veg";
+}
+
 export default function MenuPage() {
-  const {
-    addToCart,
-  } = useCart();
+  const router = useRouter();
+  const { addToCart } = useCart();
 
-  const [products, setProducts] =
-    useState([]);
-
-  const [filteredProducts, setFilteredProducts] =
-    useState([]);
-
-  const [categories, setCategories] =
-    useState(["All"]);
-
+  const [products, setProducts] = useState([]);
   const [selectedCategory, setSelectedCategory] =
+    useState("All Items");
+  const [selectedFoodType, setSelectedFoodType] =
     useState("All");
+  const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [addedProduct, setAddedProduct] = useState(null);
+  const [activeSlide, setActiveSlide] = useState(0);
 
-  const [search, setSearch] =
-    useState("");
-
-  const [loading, setLoading] =
-    useState(true);
-
-  const [error, setError] =
-    useState("");
-
-  const [addedProduct, setAddedProduct] =
-    useState(null);
-
-  // Fetch products from MongoDB
   const fetchProducts = async () => {
     try {
       setLoading(true);
       setError("");
 
-      const response =
-        await fetch("/api/products");
-
-      const data =
-        await response.json();
+      const response = await fetch("/api/products");
+      const data = await response.json();
 
       if (!response.ok) {
         throw new Error(
-          data.message ||
-            "Failed to fetch products"
+          data.message || "Failed to fetch products"
         );
       }
 
-      const productList =
-        data.products || [];
-
-      setProducts(productList);
-      setFilteredProducts(
-        productList
-      );
-
-      // Create unique categories
-      const uniqueCategories = [
-        "All",
-        ...new Set(
-          productList.map(
-            (product) =>
-              product.category
-          )
-        ),
-      ];
-
-      setCategories(
-        uniqueCategories
-      );
-    } catch (error) {
-      console.error(
-        "MENU PRODUCTS ERROR:",
-        error
-      );
-
-      setError(
-        error.message ||
-          "Failed to load menu"
-      );
+      setProducts(data.products || []);
+    } catch (err) {
+      console.error("MENU PRODUCTS ERROR:", err);
+      setError(err.message || "Failed to load menu");
     } finally {
       setLoading(false);
     }
@@ -92,105 +108,135 @@ export default function MenuPage() {
     fetchProducts();
   }, []);
 
-  // Search + Category Filter
+  // Automatic image slider
   useEffect(() => {
+    const timer = setInterval(() => {
+      setActiveSlide((current) =>
+        (current + 1) % categorySlides.length
+      );
+    }, 4000);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  const availableFoodTypes = useMemo(() => {
+    if (nonVegOnlyCategories.includes(selectedCategory)) {
+      return ["All", "Non-Veg"];
+    }
+
+    if (vegOnlyCategories.includes(selectedCategory)) {
+      return ["All", "Veg"];
+    }
+
+    return ["All", "Veg", "Non-Veg"];
+  }, [selectedCategory]);
+
+  const filteredProducts = useMemo(() => {
     let result = [...products];
 
-    // Category filter
-    if (
-      selectedCategory !== "All"
-    ) {
-      result =
-        result.filter(
-          (product) =>
-            product.category ===
-            selectedCategory
-        );
+    if (selectedCategory !== "All Items") {
+      result = result.filter(
+        (product) => product.category === selectedCategory
+      );
     }
 
-    // Search filter
-    if (search.trim()) {
-      const searchText =
-        search
-          .toLowerCase()
-          .trim();
-
-      result =
-        result.filter(
-          (product) =>
-            product.name
-              .toLowerCase()
-              .includes(
-                searchText
-              ) ||
-            product.description
-              .toLowerCase()
-              .includes(
-                searchText
-              ) ||
-            product.category
-              .toLowerCase()
-              .includes(
-                searchText
-              )
-        );
+    if (selectedFoodType !== "All") {
+      result = result.filter(
+        (product) => getFoodType(product) === selectedFoodType
+      );
     }
 
-    setFilteredProducts(
-      result
-    );
+    const searchText = search.trim().toLowerCase();
+
+    if (searchText) {
+      result = result.filter((product) => {
+        const name = (product.name || "").toLowerCase();
+        const description = (
+          product.description || ""
+        ).toLowerCase();
+        const category = (
+          product.category || ""
+        ).toLowerCase();
+
+        return (
+          name.includes(searchText) ||
+          description.includes(searchText) ||
+          category.includes(searchText)
+        );
+      });
+    }
+
+    return result;
   }, [
-    search,
-    selectedCategory,
     products,
+    selectedCategory,
+    selectedFoodType,
+    search,
   ]);
 
-  const handleAddToCart = (
-    product
-  ) => {
-    addToCart({
-      id: product._id,
-      name: product.name,
-      price: product.price,
-      image: product.image,
-      category: product.category,
-      description: product.description,
-      stock: product.stock,
+  const handleCategoryChange = (category) => {
+    setSelectedCategory(category);
+    setSelectedFoodType("All");
+  };
+
+  const prepareCartProduct = (product) => ({
+    id: product._id,
+    name: product.name,
+    price: Number(product.price),
+    image: product.image,
+    category: product.category,
+    foodType: getFoodType(product),
+    description: product.description,
+    stock: Number(product.stock) || 0,
   });
 
-    setAddedProduct(
-      product._id
-    );
+  const handleAddToCart = (product) => {
+    if (!product._id) {
+      alert("This product is not saved in the database yet.");
+      return;
+    }
+
+    if (!product.stock || product.stock <= 0) {
+      alert("This item is currently out of stock.");
+      return;
+    }
+
+    addToCart(prepareCartProduct(product));
+    setAddedProduct(product._id);
 
     setTimeout(() => {
       setAddedProduct(null);
     }, 1500);
   };
 
+  const handleBuyNow = (product) => {
+    if (!product._id) {
+      alert("This product is not saved in the database yet.");
+      return;
+    }
+
+    if (!product.stock || product.stock <= 0) {
+      alert("This item is currently out of stock.");
+      return;
+    }
+
+    addToCart(prepareCartProduct(product));
+    router.push("/checkout");
+  };
+
   if (loading) {
     return (
       <main className="menu-page">
-
         <section className="menu-header">
           <p>SMART RESTAURANT</p>
-
-          <h1>
-            Our Menu
-          </h1>
-
-          <span>
-            Loading delicious food...
-          </span>
+          <h1>Our Menu</h1>
+          <span>Loading delicious food...</span>
         </section>
 
         <div className="menu-loading">
           <div className="menu-spinner"></div>
-
-          <p>
-            Loading menu...
-          </p>
+          <p>Loading menu...</p>
         </div>
-
       </main>
     );
   }
@@ -198,271 +244,262 @@ export default function MenuPage() {
   if (error) {
     return (
       <main className="menu-page">
-
         <section className="menu-header">
           <p>SMART RESTAURANT</p>
-
-          <h1>
-            Our Menu
-          </h1>
+          <h1>Our Menu</h1>
         </section>
 
         <div className="menu-error">
-
-          <div>
-            ⚠️
-          </div>
-
-          <h2>
-            Unable to load menu
-          </h2>
-
-          <p>
-            {error}
-          </p>
-
-          <button
-            onClick={
-              fetchProducts
-            }
-          >
-            Try Again
-          </button>
-
+          <div>⚠️</div>
+          <h2>Unable to load menu</h2>
+          <p>{error}</p>
+          <button onClick={fetchProducts}>Try Again</button>
         </div>
-
       </main>
     );
   }
 
+  const slide = categorySlides[activeSlide];
+
   return (
     <main className="menu-page">
-
-      {/* HEADER */}
-
       <section className="menu-header">
-
-        <p>
-          SMART RESTAURANT
-        </p>
-
-        <h1>
-          Our Menu
-        </h1>
-
+        <p>SMART RESTAURANT</p>
+        <h1>Our Menu</h1>
         <span>
-          Fresh food, delicious taste,
-          delivered to your door.
+          Fresh food, delicious taste, delivered to your door.
         </span>
+      </section>
 
+      {/* FEATURED FOOD IMAGE SLIDER */}
+      <section className="menu-hero-slider">
+        <img src={slide.image} alt={slide.title} />
+
+        <div className="menu-slider-overlay">
+          <span>MADE FRESH FOR YOU</span>
+          <h2>{slide.title}</h2>
+          <p>{slide.subtitle}</p>
+
+          <button
+            onClick={() => {
+              setSelectedCategory("All Items");
+              setSelectedFoodType("All");
+              document
+                .querySelector(".menu-categories")
+                ?.scrollIntoView({ behavior: "smooth" });
+            }}
+          >
+            Explore Menu
+          </button>
+        </div>
+
+        <div className="menu-slider-dots">
+          {categorySlides.map((item, index) => (
+            <button
+              key={item.title}
+              className={
+                activeSlide === index ? "active" : ""
+              }
+              onClick={() => setActiveSlide(index)}
+              aria-label={`Show ${item.title}`}
+            />
+          ))}
+        </div>
+
+        <button
+          className="menu-slide-arrow prev"
+          onClick={() =>
+            setActiveSlide(
+              (activeSlide - 1 + categorySlides.length) %
+                categorySlides.length
+            )
+          }
+          aria-label="Previous slide"
+        >
+          ‹
+        </button>
+
+        <button
+          className="menu-slide-arrow next"
+          onClick={() =>
+            setActiveSlide(
+              (activeSlide + 1) % categorySlides.length
+            )
+          }
+          aria-label="Next slide"
+        >
+          ›
+        </button>
       </section>
 
       {/* SEARCH */}
-
       <section className="menu-controls">
-
         <div className="menu-search">
-
-          <span>
-            🔍
-          </span>
-
+          <span>🔍</span>
           <input
             type="text"
             placeholder="Search food..."
             value={search}
-            onChange={(e) =>
-              setSearch(
-                e.target.value
-              )
-            }
+            onChange={(e) => setSearch(e.target.value)}
           />
-
         </div>
-
       </section>
 
       {/* CATEGORIES */}
-
       <section className="menu-categories">
-
-        {categories.map(
-          (category) => (
-
-            <button
-              key={category}
-              className={
-                selectedCategory ===
-                category
-                  ? "category-btn active"
-                  : "category-btn"
-              }
-              onClick={() =>
-                setSelectedCategory(
-                  category
-                )
-              }
-            >
-              {category}
-            </button>
-
-          )
-        )}
-
+        {categories.map((category) => (
+          <button
+            key={category}
+            className={
+              selectedCategory === category
+                ? "category-btn active"
+                : "category-btn"
+            }
+            onClick={() => handleCategoryChange(category)}
+          >
+            {category}
+          </button>
+        ))}
       </section>
 
+      {/* VEG / NON-VEG FILTER */}
+      <section className="food-type-filters">
+        {availableFoodTypes.map((type) => (
+          <button
+            key={type}
+            className={[
+              "food-type-btn",
+              type === "Veg" ? "veg-filter" : "",
+              type === "Non-Veg" ? "nonveg-filter" : "",
+              selectedFoodType === type ? "active" : "",
+            ].join(" ")}
+            onClick={() => setSelectedFoodType(type)}
+          >
+            {type === "All"
+              ? "All"
+              : type === "Veg"
+              ? "🟢 Veg"
+              : "🔴 Non-Veg"}
+          </button>
+        ))}
+      </section>
+
+      {/* RESULT COUNT */}
+      <div className="menu-result-count">
+        Showing <strong>{filteredProducts.length}</strong> items
+      </div>
+
       {/* PRODUCTS */}
-
-      {filteredProducts.length ===
-      0 ? (
-
+      {filteredProducts.length === 0 ? (
         <div className="menu-empty">
-
-          <div>
-            🍽️
-          </div>
-
-          <h2>
-            No Food Found
-          </h2>
-
+          <div>🍽️</div>
+          <h2>No Food Found</h2>
           <p>
-            Try another search or
-            category.
+            No products are available for this selection.
+            Try another category or add products from Admin Panel.
           </p>
-
         </div>
-
       ) : (
-
         <section className="menu-grid">
+          {filteredProducts.map((product) => {
+            const foodType = getFoodType(product);
+            const isOutOfStock =
+              !product.stock || product.stock <= 0;
 
-          {filteredProducts.map(
-            (product) => (
-
-              <div
+            return (
+              <article
                 className="food-card"
                 key={product._id}
               >
-
-                {/* IMAGE */}
-
                 <div className="food-image">
-
                   <img
                     src={
-                      product.image
+                      product.image ||
+                      "/images/food-placeholder.jpg"
                     }
-                    alt={
-                      product.name
-                    }
+                    alt={product.name}
+                    loading="lazy"
                   />
 
-                  {product.rating >
-                    0 && (
+                  <span
+                    className={
+                      foodType === "Veg"
+                        ? "food-type-badge veg-badge"
+                        : "food-type-badge nonveg-badge"
+                    }
+                  >
+                    {foodType === "Veg" ? "🟢 Veg" : "🔴 Non-Veg"}
+                  </span>
 
+                  {product.rating > 0 && (
                     <span className="food-rating">
-                      ⭐{" "}
-                      {
-                        product.rating
-                      }
+                      ⭐ {product.rating}
                     </span>
-
                   )}
-
                 </div>
 
-                {/* CONTENT */}
-
                 <div className="food-content">
-
                   <div className="food-top">
-
                     <div>
-
-                      <h3>
-                        {
-                          product.name
-                        }
-                      </h3>
-
-                      <span>
-                        {
-                          product.category
-                        }
-                      </span>
-
+                      <h3>{product.name}</h3>
+                      <span>{product.category}</span>
                     </div>
 
-                    <strong>
-                      ₹
-                      {
-                        product.price
-                      }
-                    </strong>
-
+                    <strong>₹{product.price}</strong>
                   </div>
 
                   <p>
-                    {
-                      product.description
-                    }
+                    {product.description ||
+                      "Freshly prepared with quality ingredients."}
                   </p>
 
-                  {/* STOCK */}
-
-                  {product.stock ===
-                  0 ? (
-
+                  {isOutOfStock ? (
                     <div className="out-of-stock">
                       Out of Stock
                     </div>
-
                   ) : (
+                    <>
+                      <div className="food-stock-row">
+                        <span className="stock-text">
+                          {product.stock <= 5
+                            ? `Only ${product.stock} left`
+                            : "Available"}
+                        </span>
+                      </div>
 
-                    <div className="food-bottom">
+                      <div className="food-action-buttons">
+                        <button
+                          className={
+                            addedProduct === product._id
+                              ? "add-cart-btn added"
+                              : "add-cart-btn"
+                          }
+                          onClick={() =>
+                            handleAddToCart(product)
+                          }
+                        >
+                          {addedProduct === product._id
+                            ? "✓ Added"
+                            : "+ Add to Cart"}
+                        </button>
 
-                      <span className="stock-text">
-                        {product.stock <=
-                        5
-                          ? `Only ${product.stock} left`
-                          : "Available"}
-                      </span>
-
-                      <button
-                        className={
-                          addedProduct ===
-                          product._id
-                            ? "add-cart-btn added"
-                            : "add-cart-btn"
-                        }
-                        onClick={() =>
-                          handleAddToCart(
-                            product
-                          )
-                        }
-                      >
-                        {addedProduct ===
-                        product._id
-                          ? "✓ Added"
-                          : "+ Add to Cart"}
-                      </button>
-
-                    </div>
-
+                        <button
+                          className="buy-now-btn"
+                          onClick={() =>
+                            handleBuyNow(product)
+                          }
+                        >
+                          Buy Now
+                        </button>
+                      </div>
+                    </>
                   )}
-
                 </div>
-
-              </div>
-
-            )
-          )}
-
+              </article>
+            );
+          })}
         </section>
-
       )}
-
     </main>
   );
 }
